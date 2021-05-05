@@ -64,14 +64,14 @@ func (module BestEffortBroadcast_Module) Broadcast(message BestEffortBroadcast_R
 	for i := 0; i < len(message.Addresses); i++ {
 		msg := BEB2PP2PLink(message)
 		msg.To = message.Addresses[i]
+		// fmt.Println("Sent to "+message.Addresses[i], "with clock[127.0.0.1:5001] = ", msg.Data.Clock["127.0.0.1:5001"])
 		module.Pp2plink.Req <- msg
-		fmt.Println("Sent to " + message.Addresses[i])
+
 	}
 }
 
 func (module BestEffortBroadcast_Module) Deliver(message BestEffortBroadcast_Ind_Message) {
 
-	// fmt.Println("Received '" + message.Message + "' from " + message.From)
 	module.Ind <- message
 	// fmt.Println("# End BEB Received")
 }

@@ -28,7 +28,7 @@ type CasualOrderBroadcast_Module struct {
 	ip      string
 }
 
-func (cob CasualOrderBroadcast_Module) Init(address []string) {
+func (cob *CasualOrderBroadcast_Module) Init(address []string) {
 
 	fmt.Println("Init COB!")
 	cob.Beb = BEB.BestEffortBroadcast_Module{
@@ -69,10 +69,42 @@ func (cob CasualOrderBroadcast_Module) Start() {
 
 }
 
-func (cob CasualOrderBroadcast_Module) processInd(req CasualOrderBroadcast_Ind_Message) {
+func (cob *CasualOrderBroadcast_Module) processInd(ind CasualOrderBroadcast_Ind_Message) {
 
-	// deliver
-	cob.Ind <- req
+	if ind.Clock[ind.From] <= cob.Clock[ind.From] {
+		// println("--------BOMBOU----------")
+		// println("Pendings size = ", len(cob.Pending))
+		// println(ind.Clock[ind.From], " vs ", cob.Clock[ind.From])
+		cob.Clock[ind.From] = ind.Clock[ind.From] + 1
+		cob.Ind <- ind
+		cob.processPendings()
+	} else {
+		// println("MSG-", ind.Message)
+		// println(ind.Clock[ind.From], " vs ", cob.Clock[ind.From])
+		// println("--------FERROU----------")
+		cob.Pending = append(cob.Pending, ind)
+		// println("Pendings size = ", len(cob.Pending))
+
+	}
+
+}
+
+func (cob *CasualOrderBroadcast_Module) processPendings() {
+	tmp := make([]CasualOrderBroadcast_Ind_Message, len(cob.Pending))
+	copy(tmp, cob.Pending)
+	// println("Processing pendings...")
+	// println("Pendings size = ", len(cob.Pending))
+	for i, ind := range tmp {
+		if ind.Clock[ind.From] <= cob.Clock[ind.From] {
+			// println("Entrei...")
+			cob.Clock[ind.From] = ind.Clock[ind.From] + 1
+			cob.Pending = append(cob.Pending[:i], cob.Pending[i+1:]...)
+			cob.Ind <- ind
+			cob.processPendings()
+			break
+		}
+	}
+	// println("Finished processing pendings...")
 }
 
 func (cob *CasualOrderBroadcast_Module) processReq(req CasualOrderBroadcast_Req_Message) BEB.BestEffortBroadcast_Req_Message {

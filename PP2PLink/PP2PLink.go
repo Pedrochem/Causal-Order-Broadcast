@@ -74,6 +74,9 @@ func (module *PP2PLink) Start(address string) {
 					msg := PP2PLink_Ind_Message{
 						From: cont[1],
 						Data: bufMsgAsStruct}
+
+					// println("RECEBENDO O CLOCK[127.0.0.1:5001] = ", msg.Data.Clock["127.0.0.1:5001"])
+
 					module.Ind <- msg
 				}
 			}()
@@ -90,10 +93,20 @@ func (module *PP2PLink) Start(address string) {
 }
 
 func (module *PP2PLink) Send(message PP2PLink_Req_Message) {
+	var y = message.Data.Message
+	var x = make(map[string]int, len(message.Data.Clock))
+	for k, v := range message.Data.Clock {
+		x[k] = v
+	}
+	// println("Recebendo request SEND CLOCK=", message.Data.Clock["127.0.0.1:5001"])
 	value := message.Data.Message
-	if strings.Contains(value, "delay") {
+	if strings.Contains(value, "delay") && strings.Contains(strings.Split(value, "§")[0], strings.Split(message.To, ":")[1]) {
 		time.Sleep(3 * time.Second)
 	}
+	message.Data.Clock = x
+	message.Data.Message = y
+
+	// println("ENVIANDO O CLOCK[127.0.0.1:5001] = ", message.Data.Clock["127.0.0.1:5001"])
 
 	var conn net.Conn
 	var ok bool
