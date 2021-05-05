@@ -25,12 +25,12 @@ type CasualOrderBroadcast_Module struct {
 	Clock   map[string]int
 	Lsn     int
 	Pending []CasualOrderBroadcast_Ind_Message
-	ip      string
+	Ip      string
 }
 
-func (cob *CasualOrderBroadcast_Module) Init(address []string) {
+func (cob *CasualOrderBroadcast_Module) Init(ip string, address []string) {
 
-	fmt.Println("Init COB!")
+	// fmt.Println("Init COB!")
 	cob.Beb = BEB.BestEffortBroadcast_Module{
 		Req: make(chan BEB.BestEffortBroadcast_Req_Message),
 		Ind: make(chan BEB.BestEffortBroadcast_Ind_Message)}
@@ -40,15 +40,15 @@ func (cob *CasualOrderBroadcast_Module) Init(address []string) {
 
 	for i := 0; i < len(address); i++ {
 		cob.Clock[address[i]] = 0
-		fmt.Printf("Clock[%v] = %v \n", address[i], cob.Clock[address[i]])
+		fmt.Printf("%v - Clock[%v] = %v \n", ip, address[i], cob.Clock[address[i]])
 	}
 
 	// starts lsn at 0
 	cob.Lsn = 0
 
-	cob.ip = address[0]
+	cob.Ip = ip
 
-	cob.Beb.Init(address[0])
+	cob.Beb.Init(ip)
 	cob.Start()
 }
 
@@ -96,7 +96,6 @@ func (cob *CasualOrderBroadcast_Module) processPendings() {
 	// println("Pendings size = ", len(cob.Pending))
 	for i, ind := range tmp {
 		if ind.Clock[ind.From] <= cob.Clock[ind.From] {
-			// println("Entrei...")
 			cob.Clock[ind.From] = ind.Clock[ind.From] + 1
 			cob.Pending = append(cob.Pending[:i], cob.Pending[i+1:]...)
 			cob.Ind <- ind
@@ -109,7 +108,7 @@ func (cob *CasualOrderBroadcast_Module) processPendings() {
 
 func (cob *CasualOrderBroadcast_Module) processReq(req CasualOrderBroadcast_Req_Message) BEB.BestEffortBroadcast_Req_Message {
 	req.Clock = cob.Clock
-	req.Clock[cob.ip] = cob.Lsn
+	req.Clock[cob.Ip] = cob.Lsn
 	cob.Lsn++
 	return COBReqToBEBReq(req)
 }

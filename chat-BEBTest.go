@@ -12,12 +12,55 @@ go run chat.go ...  127.0.0.1:6001  127.0.0.1:5001
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"os"
+	"strconv"
+	"time"
 
 	. "./COB"
 )
+
+func quit(messageLog []string) {
+	for i := range messageLog {
+		println(messageLog[i])
+	}
+	os.Exit(3)
+}
+
+func process(cob CasualOrderBroadcast_Module, address []string) {
+	// envia broadcast
+	go func() {
+		println(cob.Ip, " STARTED")
+		i := 0
+		for {
+			time.Sleep(2 * time.Second)
+			msg := " Msg " + strconv.Itoa(i) + "§" + cob.Ip
+			i++
+			req := CasualOrderBroadcast_Req_Message{
+				Addresses: address,
+				Message:   msg}
+			cob.Req <- req
+
+		}
+
+	}()
+
+	// receptor de broadcasts
+	go func() {
+		for {
+			// in := <-cob.Ind
+
+			// imprime a mensagem recebida na tela
+			// fmt.Println("-----------------------------------------------------")
+			// fmt.Printf("Message from %v: %v\n", in.From, in.Message)
+			// fmt.Printf("Clock: %v\n", in.Clock)
+			// messageLog = append(messageLog, in.Message)
+			// clockLog = append(clockLog, in.Clock)
+
+		}
+	}()
+
+}
 
 func main() {
 
@@ -30,44 +73,27 @@ func main() {
 	}
 
 	addresses := os.Args[1:]
-	fmt.Println(addresses)
+	// messageLog := make([]string, 10000)
+	// clockLog := make([]map[string]int, 1000)
 
-	cob := CasualOrderBroadcast_Module{
-		Req: make(chan CasualOrderBroadcast_Req_Message),
-		Ind: make(chan CasualOrderBroadcast_Ind_Message)}
+	cobs := make([]CasualOrderBroadcast_Module, len(addresses))
 
-	cob.Init(addresses)
+	println("Addresses size :", len(addresses))
+	println("Cobs size :", len(cobs))
 
-	// enviador de broadcasts
-	go func() {
+	for i, ip := range addresses {
+		cob := CasualOrderBroadcast_Module{
+			Req: make(chan CasualOrderBroadcast_Req_Message),
+			Ind: make(chan CasualOrderBroadcast_Ind_Message)}
+		cob.Init(ip, addresses)
+		cobs[i] = cob
+	}
 
-		scanner := bufio.NewScanner(os.Stdin)
-		var msg string
-
-		for {
-			if scanner.Scan() {
-				msg = scanner.Text()
-				msg += "§" + addresses[0]
-			}
-			req := CasualOrderBroadcast_Req_Message{
-				Addresses: addresses[0:],
-				Message:   msg}
-			cob.Req <- req
-		}
-	}()
-
-	// receptor de broadcasts
-	go func() {
-		for {
-			in := <-cob.Ind
-
-			// imprime a mensagem recebida na tela
-			fmt.Println("-----------------------------------------------------")
-			fmt.Printf("Message from %v: %v\n", in.From, in.Message)
-			fmt.Printf("Clock: %v\n", in.Clock)
-		}
-	}()
+	for _, c := range cobs {
+		go process(c, addresses)
+	}
 
 	blq := make(chan int)
 	<-blq
+
 }

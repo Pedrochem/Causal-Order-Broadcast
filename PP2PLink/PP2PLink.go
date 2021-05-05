@@ -34,7 +34,7 @@ type PP2PLink struct {
 
 func (module *PP2PLink) Init(address string) {
 
-	fmt.Println("[PP LINK] - Init PP2PLink!")
+	// fmt.Println("[PP LINK] - Init PP2PLink!")
 	if module.Run {
 		return
 	}

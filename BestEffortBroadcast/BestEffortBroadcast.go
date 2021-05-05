@@ -13,8 +13,6 @@ package BestEffortBroadcast
 */
 
 import (
-	"fmt"
-
 	PP2PLink "../PP2PLink"
 )
 
@@ -36,7 +34,7 @@ type BestEffortBroadcast_Module struct {
 
 func (module BestEffortBroadcast_Module) Init(address string) {
 
-	fmt.Println("Init BEB!")
+	// fmt.Println("Init BEB!")
 	module.Pp2plink = PP2PLink.PP2PLink{
 		Req: make(chan PP2PLink.PP2PLink_Req_Message),
 		Ind: make(chan PP2PLink.PP2PLink_Ind_Message),
