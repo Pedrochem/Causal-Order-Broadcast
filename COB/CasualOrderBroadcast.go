@@ -4,20 +4,23 @@ import (
 	"fmt"
 
 	BEB "../BestEffortBroadcast"
-	PP2PLink "../PP2PLink"
 )
 
+// estrutura request
 type CasualOrderBroadcast_Req_Message struct {
 	Addresses []string
 	Message   string
 	Clock     map[string]int
 }
 
+// estrutura ind
 type CasualOrderBroadcast_Ind_Message struct {
 	From    string
 	Message string
 	Clock   map[string]int
 }
+
+// estrutura modulo
 type CasualOrderBroadcast_Module struct {
 	Ind     chan CasualOrderBroadcast_Ind_Message
 	Req     chan CasualOrderBroadcast_Req_Message
@@ -30,22 +33,20 @@ type CasualOrderBroadcast_Module struct {
 
 func (cob *CasualOrderBroadcast_Module) Init(ip string, address []string) {
 
-	// fmt.Println("Init COB!")
 	cob.Beb = BEB.BestEffortBroadcast_Module{
 		Req: make(chan BEB.BestEffortBroadcast_Req_Message),
 		Ind: make(chan BEB.BestEffortBroadcast_Ind_Message)}
 
-	// initializing clocks (clock[ip]=0)
+	// iniciando relogio vetorial do processo (clock[ip]=0)
 	cob.Clock = make(map[string]int, len(address))
 
+	// garantindo que o relogio foi corretamente inicializado
 	for i := 0; i < len(address); i++ {
 		cob.Clock[address[i]] = 0
 		fmt.Printf("%v - Clock[%v] = %v \n", ip, address[i], cob.Clock[address[i]])
 	}
 
-	// starts lsn at 0
 	cob.Lsn = 0
-
 	cob.Ip = ip
 
 	cob.Beb.Init(ip)
@@ -57,9 +58,13 @@ func (cob CasualOrderBroadcast_Module) Start() {
 	go func() {
 		for {
 			select {
-			case req := <-cob.Req:
-				cob.Beb.Req <- cob.processReq(req)
 
+			// caso request => processar request => enviar para camada inferior (BEB)
+			case req := <-cob.Req:
+				x := cob.processReq(req)
+				cob.Beb.Req <- x
+
+			// caso ind => processar ind
 			case ind := <-cob.Beb.Ind:
 				indComplete := BEBIndToCOBInd(ind)
 				cob.processInd(indComplete)
@@ -70,63 +75,66 @@ func (cob CasualOrderBroadcast_Module) Start() {
 }
 
 func (cob *CasualOrderBroadcast_Module) processInd(ind CasualOrderBroadcast_Ind_Message) {
-
-	if ind.Clock[ind.From] <= cob.Clock[ind.From] {
-		// println("--------BOMBOU----------")
-		// println("Pendings size = ", len(cob.Pending))
-		// println(ind.Clock[ind.From], " vs ", cob.Clock[ind.From])
-		cob.Clock[ind.From] = ind.Clock[ind.From] + 1
-		cob.Ind <- ind
-		cob.processPendings()
-	} else {
-		// println("MSG-", ind.Message)
-		// println(ind.Clock[ind.From], " vs ", cob.Clock[ind.From])
-		// println("--------FERROU----------")
-		cob.Pending = append(cob.Pending, ind)
-		// println("Pendings size = ", len(cob.Pending))
-
-	}
-
+	// adiciona ind a lista de pendentes => processa pendentes
+	cob.Pending = append(cob.Pending, ind)
+	cob.processPendings()
 }
 
 func (cob *CasualOrderBroadcast_Module) processPendings() {
 	tmp := make([]CasualOrderBroadcast_Ind_Message, len(cob.Pending))
 	copy(tmp, cob.Pending)
-	// println("Processing pendings...")
-	// println("Pendings size = ", len(cob.Pending))
+
 	for i, ind := range tmp {
-		if ind.Clock[ind.From] <= cob.Clock[ind.From] {
-			cob.Clock[ind.From] = ind.Clock[ind.From] + 1
+		higher := false
+		for k := range ind.Clock {
+			if ind.Clock[k] > cob.Clock[k] {
+				higher = true
+			}
+		}
+		// caso o relogio vetorial da ind nao seja maior que o do modulo => processar ind
+		if !higher {
 			cob.Pending = append(cob.Pending[:i], cob.Pending[i+1:]...)
+			cob.Clock[ind.From] = ind.Clock[ind.From] + 1
 			cob.Ind <- ind
 			cob.processPendings()
 			break
 		}
 	}
-	// println("Finished processing pendings...")
 }
 
 func (cob *CasualOrderBroadcast_Module) processReq(req CasualOrderBroadcast_Req_Message) BEB.BestEffortBroadcast_Req_Message {
-	req.Clock = cob.Clock
-	req.Clock[cob.Ip] = cob.Lsn
-	cob.Lsn++
+
+	// mapear relogio da aplicacao para relogio do request
+	clock := make(map[string]int)
+	for k, v := range cob.Clock {
+		clock[k] = v
+	}
+	tmp := cob.Lsn
+	clock[cob.Ip] = tmp
+
+	req.Clock = clock
+
+	// incrementar lsn
+	cob.Lsn = cob.Lsn + 1
+
 	return COBReqToBEBReq(req)
 }
 
+// conversao de Request COB => Request BEB
 func COBReqToBEBReq(req CasualOrderBroadcast_Req_Message) BEB.BestEffortBroadcast_Req_Message {
 
 	return BEB.BestEffortBroadcast_Req_Message{
 		Addresses: req.Addresses,
-		Data: PP2PLink.PP2LinkMessage{
-			Message: req.Message,
-			Clock:   req.Clock}}
+		Message:   req.Message,
+		Clock:     req.Clock}
 
 }
 
+// conversao de Ind Beb => Ind COB
 func BEBIndToCOBInd(ind BEB.BestEffortBroadcast_Ind_Message) CasualOrderBroadcast_Ind_Message {
 
 	return CasualOrderBroadcast_Ind_Message{
 		From:    ind.From,
-		Message: ind.Data.Message,
-		Clock:   ind.Data.Clock}
+		Message: ind.Message,
+		Clock:   ind.Clock}
 }
